@@ -8,3 +8,6 @@ gym-env/
 wandb/
 .env
 .netrc
+
+# Editor
+.vscode/
