@@ -1,0 +1,46 @@
+{
+  "tier": "tier3",
+  "variant": "double",
+  "seed": 2,
+  "config": {
+    "env_id": "LunarLander-v3",
+    "total_steps": 400000,
+    "eval_every": 10000,
+    "eval_episodes": 10,
+    "final_eval_episodes": 100,
+    "gamma": 0.99,
+    "eps_start": 1.0,
+    "eps_end": 0.05,
+    "hidden": [
+      256,
+      256
+    ],
+    "lr": 0.0005,
+    "buffer_size": 100000,
+    "batch_size": 128,
+    "learning_starts": 10000,
+    "train_freq": 4,
+    "target_update": 1000,
+    "grad_clip": 10.0,
+    "eps_decay_steps": 100000,
+    "algo": "dqn",
+    "double": true,
+    "variant": "double"
+  },
+  "threshold": 200,
+  "final_eval_mean": 256.2452247003189,
+  "final_eval_std": 23.862543803215658,
+  "final_eval_episodes": 100,
+  "steps_to_threshold": 390000,
+  "wall_time_s": 693.29,
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz",
+    "logical_cpus": 8,
+    "os": "Linux-6.1.0-40-amd64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "torch": "2.5.1+cu121",
+    "gymnasium": "1.3.0",
+    "numpy": "2.4.6"
+  },
+  "n_updates": 97500
+}
