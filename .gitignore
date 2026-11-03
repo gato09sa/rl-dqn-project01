@@ -3,3 +3,8 @@ __pycache__/
 .venv/
 gym-env/
 .ipynb_checkpoints/
+
+# Weights & Biases
+wandb/
+.env
+.netrc
