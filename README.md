@@ -2,6 +2,22 @@
 
 José Reinoso · Aldrin Chavez
 
-- `tier1/` — Tabular RL (Q-learning/SARSA) vs DQN on a Classic Control problem
-- `tier2/` — DQN on a harder discrete-action problem (hyperparameter study + ablation)
-- `tier3/` — Extension
+## Structure
+
+```
+agents/
+  dqn.py           # shared: DQN agent (Q-network, replay buffer, target network)
+  tabular.py       # Tier 1: Q-learning / SARSA
+envs/
+  discretizer.py   # Tier 1: state discretization
+experiments/
+  common.py        # shared: seeding, greedy evaluation, CSV logging
+  plot.py          # shared: learning curves (mean ± band, x-axis = env steps)
+  tier1/           # Tier 1 configs and run scripts
+  tier2/           # Tier 2 configs and run scripts
+  tier3/           # Tier 3 configs and run scripts
+results/
+  tier1/ tier2/ tier3/   # logs, figures, trained weights, GIFs
+report/            # paper
+requirements.txt
+```
