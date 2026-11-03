@@ -1,0 +1,11 @@
+# Python 3.14 (also works on 3.10+). CPU-only PyTorch is enough.
+gymnasium==1.3.0
+box2d-py==2.3.8      # LunarLander; see README if the build fails
+pygame-ce==2.5.8     # rendering (GIFs)
+torch==2.14.1
+numpy==2.5.3
+pandas==3.1.0
+matplotlib==3.11.2
+tabulate==0.10.0
+imageio==2.38.1
+wandb==0.31.0
