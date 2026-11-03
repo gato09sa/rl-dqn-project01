@@ -1,0 +1,4 @@
+| variant      |   seeds |   final_eval_mean |   final_eval_std_across_seeds | reached_threshold   | median_steps_to_threshold   |   wall_time_s_mean |
+|:-------------|--------:|------------------:|------------------------------:|:--------------------|:----------------------------|-------------------:|
+| tab_bins10   |       5 |             199.2 |                          62.0 | 0/5                 | not reached                 |               49.7 |
+| sarsa_bins10 |       5 |             208.1 |                          70.4 | 0/5                 | not reached                 |               43.7 |

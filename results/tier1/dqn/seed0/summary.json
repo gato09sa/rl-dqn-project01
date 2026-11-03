@@ -1,0 +1,49 @@
+{
+  "tier": "tier1",
+  "variant": "dqn",
+  "seed": 0,
+  "config": {
+    "env_id": "CartPole-v1",
+    "total_steps": 200000,
+    "eval_every": 5000,
+    "eval_episodes": 10,
+    "final_eval_episodes": 100,
+    "gamma": 0.99,
+    "eps_start": 1.0,
+    "eps_end": 0.05,
+    "_doc": "Small MLP, one update per env step. Epsilon decays fast (20k steps) because the network generalizes across states.",
+    "hidden": [
+      128,
+      128
+    ],
+    "lr": 0.0005,
+    "buffer_size": 50000,
+    "batch_size": 64,
+    "learning_starts": 1000,
+    "train_freq": 1,
+    "target_update": 1000,
+    "grad_clip": 10.0,
+    "eps_decay_steps": 20000,
+    "algo": "dqn",
+    "variant": "dqn"
+  },
+  "threshold": 475.0,
+  "git_commit": "6398ca6863cddf1acc941a2ea14981ee7dc031d0",
+  "git_tag": "v1-experiments",
+  "git_dirty": false,
+  "final_eval_mean": 92.29,
+  "final_eval_std": 2.5701945451657937,
+  "final_eval_episodes": 100,
+  "steps_to_threshold": 80000,
+  "wall_time_s": 912.04,
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz",
+    "logical_cpus": 8,
+    "os": "Linux-7.0.0-38-generic-x86_64-desconocido-with-glibc2.43",
+    "python": "3.14.4",
+    "torch": "2.14.1+cu130",
+    "gymnasium": "1.3.0",
+    "numpy": "2.4.6"
+  },
+  "n_updates": 199000
+}

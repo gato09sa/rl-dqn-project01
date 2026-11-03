@@ -1,0 +1,59 @@
+{
+  "tier": "tier1",
+  "variant": "tab_bins10",
+  "seed": 0,
+  "config": {
+    "env_id": "CartPole-v1",
+    "total_steps": 200000,
+    "eval_every": 5000,
+    "eval_episodes": 10,
+    "final_eval_episodes": 100,
+    "gamma": 0.99,
+    "eps_start": 1.0,
+    "eps_end": 0.05,
+    "_doc": "ranges: cart position and pole angle use the termination limits (2.4 m, 12 deg); the two velocities are unbounded, so +-3 and +-3.5 cover the values seen in practice. Epsilon decays over half the budget because a table has no generalization: every state must be visited.",
+    "alpha": 0.1,
+    "bins": 10,
+    "ranges": [
+      [
+        -2.4,
+        2.4
+      ],
+      [
+        -3.0,
+        3.0
+      ],
+      [
+        -0.21,
+        0.21
+      ],
+      [
+        -3.5,
+        3.5
+      ]
+    ],
+    "eps_decay_steps": 100000,
+    "algo": "qlearning",
+    "variant": "tab_bins10"
+  },
+  "threshold": 475.0,
+  "git_commit": "6398ca6863cddf1acc941a2ea14981ee7dc031d0",
+  "git_tag": "v1-experiments",
+  "git_dirty": false,
+  "final_eval_mean": 210.56,
+  "final_eval_std": 83.85634382680895,
+  "final_eval_episodes": 100,
+  "steps_to_threshold": null,
+  "wall_time_s": 53.32,
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz",
+    "logical_cpus": 8,
+    "os": "Linux-7.0.0-38-generic-x86_64-desconocido-with-glibc2.43",
+    "python": "3.14.4",
+    "torch": "2.14.1+cu130",
+    "gymnasium": "1.3.0",
+    "numpy": "2.4.6"
+  },
+  "n_states": 10000,
+  "visited_fraction": 0.0936
+}

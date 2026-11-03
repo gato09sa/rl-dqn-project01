@@ -1,0 +1,3 @@
+variant,seeds,final_eval_mean,final_eval_std_across_seeds,reached_threshold,median_steps_to_threshold,wall_time_s_mean
+tab_bins10,5,199.20999999999998,61.99114517412951,0/5,not reached,49.658
+sarsa_bins10,5,208.12599999999998,70.36050159002563,0/5,not reached,43.718

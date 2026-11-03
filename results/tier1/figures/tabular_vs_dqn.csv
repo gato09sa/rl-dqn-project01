@@ -1,0 +1,5 @@
+variant,seeds,final_eval_mean,final_eval_std_across_seeds,reached_threshold,median_steps_to_threshold,wall_time_s_mean
+tab_bins6,5,216.852,53.81322008577446,0/5,not reached,44.414
+tab_bins10,5,199.20999999999998,61.99114517412951,0/5,not reached,49.658
+tab_bins20,5,163.634,47.86122798257479,0/5,not reached,44.751999999999995
+dqn,5,159.228,68.0713106675639,5/5,90000,822.71
