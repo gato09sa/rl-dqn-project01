@@ -1,0 +1,39 @@
+{
+  "_doc": "Tier 3, option B: Double DQN and Dueling DQN vs vanilla DQN on LunarLander-v3. Same budget and defaults as Tier 2; the vanilla baseline is reused from tier2/default (same config and seeds), so only the variants are trained here.",
+  "tier": "tier3",
+  "env_id": "LunarLander-v3",
+  "seeds": [0, 1, 2],
+  "run": {
+    "total_steps": 400000,
+    "eval_every": 10000,
+    "eval_episodes": 10,
+    "final_eval_episodes": 100,
+    "gamma": 0.99,
+    "eps_start": 1.0,
+    "eps_end": 0.05
+  },
+  "agent_defaults": {
+    "tabular": {},
+    "dqn": {
+      "hidden": [256, 256],
+      "lr": 0.0005,
+      "buffer_size": 100000,
+      "batch_size": 128,
+      "learning_starts": 10000,
+      "train_freq": 4,
+      "target_update": 1000,
+      "grad_clip": 10.0,
+      "eps_decay_steps": 100000
+    }
+  },
+  "variants": {
+    "double":         {"algo": "dqn", "double": true},
+    "dueling":        {"algo": "dqn", "dueling": true},
+    "double_dueling": {"algo": "dqn", "double": true, "dueling": true}
+  },
+  "plots": [
+    {"name": "dqn_variants", "title": "LunarLander-v3: DQN improvements",
+     "variants": ["tier2/default", "double", "dueling", "double_dueling"],
+     "labels": ["vanilla DQN", "Double DQN", "Dueling DQN", "Double + Dueling"]}
+  ]
+}

@@ -31,7 +31,10 @@ INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
 
 def load_runs(tier, variant):
-    """List of dicts {seed, eval: DataFrame, train: DataFrame, summary: dict}."""
+    """List of dicts {seed, eval: DataFrame, train: DataFrame, summary: dict}.
+    A variant written as "<other_tier>/<variant>" is read from that tier."""
+    if "/" in variant:
+        tier, variant = variant.split("/", 1)
     runs = []
     for d in sorted(glob.glob(os.path.join(RESULTS, tier, variant, "seed*"))):
         if not os.path.exists(os.path.join(d, "summary.json")):

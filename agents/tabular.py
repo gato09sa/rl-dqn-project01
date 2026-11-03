@@ -70,7 +70,7 @@ class TabularAgent:
         return float(np.mean(self.visits > 0))
 
     def save(self, path):
-        np.savez(path, Q=self.Q, visits=self.visits)
+        np.savez_compressed(path, Q=self.Q, visits=self.visits)
 
     def load(self, path):
         data = np.load(path)

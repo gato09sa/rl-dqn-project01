@@ -1,0 +1,60 @@
+{
+  "_doc": "Tier 1: tabular Q-learning (3 bin counts, 3 range settings, SARSA) vs DQN on CartPole-v1. Same 200k-step budget for every method; 5 seeds.",
+  "tier": "tier1",
+  "env_id": "CartPole-v1",
+  "seeds": [0, 1, 2, 3, 4],
+  "run": {
+    "total_steps": 200000,
+    "eval_every": 5000,
+    "eval_episodes": 10,
+    "final_eval_episodes": 100,
+    "gamma": 0.99,
+    "eps_start": 1.0,
+    "eps_end": 0.05
+  },
+  "agent_defaults": {
+    "tabular": {
+      "_doc": "ranges: cart position and pole angle use the termination limits (2.4 m, 12 deg); the two velocities are unbounded, so +-3 and +-3.5 cover the values seen in practice. Epsilon decays over half the budget because a table has no generalization: every state must be visited.",
+      "alpha": 0.1,
+      "bins": 10,
+      "ranges": [[-2.4, 2.4], [-3.0, 3.0], [-0.21, 0.21], [-3.5, 3.5]],
+      "eps_decay_steps": 100000
+    },
+    "dqn": {
+      "_doc": "Small MLP, one update per env step. Epsilon decays fast (20k steps) because the network generalizes across states.",
+      "hidden": [128, 128],
+      "lr": 0.0005,
+      "buffer_size": 50000,
+      "batch_size": 64,
+      "learning_starts": 1000,
+      "train_freq": 1,
+      "target_update": 1000,
+      "grad_clip": 10.0,
+      "eps_decay_steps": 20000
+    }
+  },
+  "variants": {
+    "tab_bins6":          {"algo": "qlearning", "bins": 6},
+    "tab_bins10":         {"algo": "qlearning", "bins": 10},
+    "tab_bins20":         {"algo": "qlearning", "bins": 20},
+    "tab_bins10_narrow":  {"algo": "qlearning", "bins": 10,
+                           "ranges": [[-2.4, 2.4], [-1.5, 1.5], [-0.21, 0.21], [-2.0, 2.0]]},
+    "tab_bins10_wide":    {"algo": "qlearning", "bins": 10,
+                           "ranges": [[-2.4, 2.4], [-6.0, 6.0], [-0.21, 0.21], [-7.0, 7.0]]},
+    "sarsa_bins10":       {"algo": "sarsa", "bins": 10},
+    "dqn":                {"algo": "dqn"}
+  },
+  "plots": [
+    {"name": "tabular_bins", "title": "CartPole-v1: Q-learning, bins per dimension",
+     "variants": ["tab_bins6", "tab_bins10", "tab_bins20"],
+     "labels": ["6 bins (1,296 states)", "10 bins (10,000 states)", "20 bins (160,000 states)"]},
+    {"name": "tabular_ranges", "title": "CartPole-v1: Q-learning (10 bins), velocity ranges",
+     "variants": ["tab_bins10_narrow", "tab_bins10", "tab_bins10_wide"],
+     "labels": ["narrow (v 1.5, w 2.0)", "default (v 3.0, w 3.5)", "wide (v 6.0, w 7.0)"]},
+    {"name": "qlearning_vs_sarsa", "title": "CartPole-v1: Q-learning vs SARSA (10 bins)",
+     "variants": ["tab_bins10", "sarsa_bins10"], "labels": ["Q-learning", "SARSA"]},
+    {"name": "tabular_vs_dqn", "title": "CartPole-v1: tabular vs DQN (same 200k-step budget)",
+     "variants": ["tab_bins6", "tab_bins10", "tab_bins20", "dqn"],
+     "labels": ["Q-learning 6 bins", "Q-learning 10 bins", "Q-learning 20 bins", "DQN"]}
+  ]
+}

@@ -58,10 +58,33 @@ To log without network: `WANDB_MODE=offline`, then `wandb sync wandb/`.
 (i5-10210U) have 4 physical cores / 8 threads; use `workers=4`. Scripts that call it must
 guard the call with `if __name__ == "__main__":`.
 
-## Reproducing the figures
+## Reproducing the experiments
+
+Each tier is one config file. One command trains every variant and seed (4 runs in
+parallel, already-finished runs are skipped), one builds every figure and table, one
+records the GIF. Add `--no-wandb` to the sweep to log only to CSV.
+
+| Tier | Train | Figures (`results/<tier>/figures/`) | Approx. time (4 workers, i5-10210U) |
+|---|---|---|---|
+| 1 — CartPole-v1, tabular vs DQN, 5 seeds | `python -m experiments.sweep experiments/tier1/cartpole.json` | `python -m experiments.make_figures experiments/tier1/cartpole.json` | ~30 min |
+| 2 — LunarLander-v3, DQN study + ablation, 3 seeds | `python -m experiments.sweep experiments/tier2/lunarlander.json` | `python -m experiments.make_figures experiments/tier2/lunarlander.json` | ~2–2.5 h |
+| 3B — Double / Dueling DQN, 3 seeds (needs Tier 2 `default`) | `python -m experiments.sweep experiments/tier3/lunarlander_variants.json` | `python -m experiments.make_figures experiments/tier3/lunarlander_variants.json` | ~1 h |
 
 ```bash
-python -m experiments.plot --tier <tier> --variants <v1> <v2> ... --out results/<tier>/figures/<name>.png [--wandb]
+# smoke test of a whole tier in ~1 min (results in results/<tier>_quick/, safe to delete)
+python -m experiments.sweep experiments/tier2/lunarlander.json --quick --no-wandb
+
+# only some variants / seeds
+python -m experiments.sweep experiments/tier2/lunarlander.json --variants default no_target --seeds 0 1
+
+# upload the figures and tables to W&B too
+python -m experiments.make_figures experiments/tier2/lunarlander.json --wandb
+
+# GIF of a trained agent -> results/<tier>/gifs/
+python -m experiments.record_gif experiments/tier1/cartpole.json --variant dqn --seed 0
+python -m experiments.record_gif experiments/tier2/lunarlander.json --variant default --seed 0
 ```
 
-One command per experiment will be listed here as the tiers are completed.
+Every variant, its hyperparameters and the default values are documented inside the
+config files (`_doc` fields). The final config of each run is also saved in its
+`summary.json`.

@@ -1,0 +1,52 @@
+{
+  "_doc": "Tier 2: DQN on LunarLander-v3. One-at-a-time study of learning rate and target-update period around the default, plus ablations without target network and without replay buffer. 3 seeds.",
+  "tier": "tier2",
+  "env_id": "LunarLander-v3",
+  "seeds": [0, 1, 2],
+  "run": {
+    "total_steps": 400000,
+    "eval_every": 10000,
+    "eval_episodes": 10,
+    "final_eval_episodes": 100,
+    "gamma": 0.99,
+    "eps_start": 1.0,
+    "eps_end": 0.05
+  },
+  "agent_defaults": {
+    "tabular": {},
+    "dqn": {
+      "_doc": "Default configuration; each variant changes exactly one value. target_update is counted in env steps (1000 steps = 250 gradient updates with train_freq 4).",
+      "hidden": [256, 256],
+      "lr": 0.0005,
+      "buffer_size": 100000,
+      "batch_size": 128,
+      "learning_starts": 10000,
+      "train_freq": 4,
+      "target_update": 1000,
+      "grad_clip": 10.0,
+      "eps_decay_steps": 100000,
+      "use_target": true,
+      "use_replay": true
+    }
+  },
+  "variants": {
+    "default":    {"algo": "dqn"},
+    "lr_1e-4":    {"algo": "dqn", "lr": 0.0001},
+    "lr_2e-3":    {"algo": "dqn", "lr": 0.002},
+    "tu_250":     {"algo": "dqn", "target_update": 250},
+    "tu_4000":    {"algo": "dqn", "target_update": 4000},
+    "no_target":  {"algo": "dqn", "use_target": false},
+    "no_replay":  {"algo": "dqn", "use_replay": false}
+  },
+  "plots": [
+    {"name": "learning_rate", "title": "LunarLander-v3: DQN learning rate",
+     "variants": ["lr_1e-4", "default", "lr_2e-3"],
+     "labels": ["lr = 1e-4", "lr = 5e-4 (default)", "lr = 2e-3"]},
+    {"name": "target_update", "title": "LunarLander-v3: DQN target-network update period",
+     "variants": ["tu_250", "default", "tu_4000"],
+     "labels": ["every 250 steps", "every 1000 steps (default)", "every 4000 steps"]},
+    {"name": "ablation", "title": "LunarLander-v3: DQN ablation",
+     "variants": ["default", "no_target", "no_replay"],
+     "labels": ["full DQN", "no target network", "no replay buffer"]}
+  ]
+}

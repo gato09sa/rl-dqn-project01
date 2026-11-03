@@ -192,8 +192,5 @@ def run_parallel(fn, jobs, workers=4):
     with ProcessPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(fn, **job): job for job in jobs}
         for fut in as_completed(futures):
-            job = futures[fut]
-            res = fut.result()
-            print(f"[done] {job}", flush=True)
-            results.append(res)
+            results.append(fut.result())
     return results
