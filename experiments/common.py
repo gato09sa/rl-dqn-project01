@@ -32,8 +32,11 @@ import torch
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULTS = os.path.join(ROOT, "results")
 
-WANDB_ENTITY = "intelligent_agents"
-WANDB_PROJECT = "rl-dqn-project01"
+# W&B lives on CoreWeave Forge, not wandb.ai. Setting the host here means a teammate's
+# runs land in the same place even if their `wandb login` used the default host.
+os.environ.setdefault("WANDB_BASE_URL", "https://api.forge.coreweave.com")
+WANDB_ENTITY = os.environ.get("WANDB_ENTITY", "intelligent_agents")
+WANDB_PROJECT = os.environ.get("WANDB_PROJECT", "rl-dqn-project01")   # override for tests
 
 EVAL_SEED_BASE = 10_000    # periodic evaluations always use env seeds 10000..10009
 FINAL_SEED_BASE = 20_000   # final evaluation uses env seeds 20000..20099 (never seen before)

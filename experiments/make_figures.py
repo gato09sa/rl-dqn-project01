@@ -29,7 +29,11 @@ def main():
         variants = spec["variants"]
         if a.quick:   # cross-tier references point at the quick results too
             variants = [v.replace("/", "_quick/", 1) if "/" in v else v for v in variants]
-        _, table = plot(tier, variants, out, spec.get("title", ""), spec.get("labels"))
+        try:
+            _, table = plot(tier, variants, out, spec.get("title", ""), spec.get("labels"))
+        except FileNotFoundError as e:   # some variant not trained yet
+            print(f"skipped {spec['name']}: {e}")
+            continue
         if a.wandb:
             upload_to_wandb(tier, out, table)
 

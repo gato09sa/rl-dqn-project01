@@ -50,7 +50,10 @@ Only `terminated` (not `truncated`) stops bootstrapping.
 Each run writes `results/<tier>/<variant>/seed<k>/` with `train.csv`, `eval.csv` and
 `summary.json` (see `experiments/common.py`). The CSV files are the source of every
 figure; W&B (entity `intelligent_agents`, project `rl-dqn-project01`) mirrors them live.
+The Forge host (`https://api.forge.coreweave.com`) is set in `experiments/common.py`, so
+each member only needs `wandb login --host https://api.forge.coreweave.com` once.
 To log without network: `WANDB_MODE=offline`, then `wandb sync wandb/`.
+To send test runs elsewhere: `WANDB_PROJECT=rl-dqn-smoke-test python -m experiments.sweep ... --quick`.
 
 ## Parallel runs
 
