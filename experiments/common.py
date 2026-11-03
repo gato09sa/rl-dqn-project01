@@ -22,6 +22,7 @@ import json
 import os
 import platform
 import random
+import subprocess
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -107,6 +108,10 @@ class RunLogger:
         self.t0 = time.time()
         self.eval_extra = list(eval_extra)
         self.threshold = config.get("threshold") or reward_threshold(config["env_id"])
+        self.git = git_info()
+        if self.git["git_dirty"]:
+            print(f"WARNING {tier}/{variant}/seed{seed}: uncommitted code changes; "
+                  f"results will not match commit {self.git['git_commit'][:7]}", flush=True)
         self.steps_to_threshold = None
 
         self._train_f = open(os.path.join(self.dir, "train.csv"), "w", newline="")
@@ -122,7 +127,7 @@ class RunLogger:
             self.wandb = wandb.init(
                 entity=WANDB_ENTITY, project=WANDB_PROJECT,
                 group=f"{tier}/{variant}", name=f"{tier}/{variant}/seed{seed}",
-                job_type=tier, config={**config, "seed": seed, "tier": tier, "variant": variant},
+                job_type=tier, config={**config, "seed": seed, "tier": tier, "variant": variant, **self.git},
                 reinit="finish_previous",
             )
             self.wandb.define_metric("env_step")
@@ -155,7 +160,7 @@ class RunLogger:
         self._eval_f.close()
         summary = {
             "tier": self.tier, "variant": self.variant, "seed": self.seed,
-            "config": self.config, "threshold": self.threshold,
+            "config": self.config, "threshold": self.threshold, **self.git,
             "final_eval_mean": float(np.mean(final_returns)),
             "final_eval_std": float(np.std(final_returns)),
             "final_eval_episodes": len(final_returns),
@@ -171,6 +176,20 @@ class RunLogger:
                 self.wandb.summary[k] = summary[k]
             self.wandb.finish()
         return summary
+
+
+def git_info():
+    """Commit the code ran on, plus whether there were uncommitted changes to the code.
+    results/ and wandb/ are ignored: runs write there, which is not a code change."""
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    try:
+        commit = git("rev-parse", "HEAD") or "unknown"
+        dirty = bool(git("status", "--porcelain", "--", ".", ":!results", ":!wandb"))
+        tag = git("describe", "--tags", "--exact-match", "HEAD") or None
+    except OSError:   # git not installed
+        commit, dirty, tag = "unknown", None, None
+    return {"git_commit": commit, "git_tag": tag, "git_dirty": dirty}
 
 
 def hardware_info():
