@@ -1,0 +1,619 @@
+% Project 01 report. Build from this folder:  latexmk -pdf main.tex
+% Limit: 6-8 pages, double column. Target ~7.5 pages. Page budget per section is
+% noted in each section header comment.
+% Red [TODO: ...] marks are placeholders; none may remain in the submitted PDF.
+\documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{newtxtext,newtxmath}   % Times for text and math, as in IEEE papers
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{cite}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{../results/}}
+
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+% Result figures without their matplotlib title (the caption replaces it).
+\newcommand{\resfig}[1]{\includegraphics[width=\textwidth,trim=0 0 0 20bp,clip]{#1}}
+
+\begin{document}
+
+\title{Tabular Q-Learning versus Deep Q-Networks on Gymnasium Control Tasks:
+Discretization, Hyperparameter Sensitivity, and Ablations}
+
+\author{
+\IEEEauthorblockN{Jos\'e Reinoso}
+\IEEEauthorblockA{\todo{affiliation}}
+\and
+\IEEEauthorblockN{Aldrin Chavez}
+\IEEEauthorblockA{\todo{affiliation}}
+}
+
+\maketitle
+
+% ---------------------------------------------------------------- 0.3 page
+\begin{abstract}
+We compare tabular reinforcement learning with Deep Q-Networks (DQN) on Gymnasium
+environments under a common protocol: equal budgets of environment steps, several
+independent seeds, and greedy evaluation reported separately from training returns. On
+CartPole-v1, tabular Q-learning with uniform state discretization (6, 10 and 20 bins per
+dimension and three velocity ranges) and SARSA are compared with DQN under the same
+200k-step budget and five seeds. On LunarLander-v3 we study the sensitivity of DQN to the
+learning rate and to the target-network update period, ablate the target network and the
+replay buffer, and compare Double and Dueling DQN with vanilla DQN, with three seeds per
+configuration. On CartPole, discretized Q-learning reaches a return of about 200 within 20k
+steps but never solves the task, whereas DQN reaches the 475 threshold in all five seeds
+(median 90k steps) at 18 times the wall-clock cost per step, and then degrades to a final
+return of 159. On LunarLander, the default DQN ends at $207\pm30$; removing the replay buffer
+($-76$) hurts more than removing the target network (83), and the largest learning rate
+makes one seed diverge. Double and Dueling DQN (214--223) stay within the across-seed spread
+of vanilla DQN. A written analysis quantifies, through action- and state-space counts, why continuous-action
+locomotion tasks and Atari pixel observations are out of reach for tabular methods and DQN,
+and which algorithm families suit them.
+\end{abstract}
+
+\begin{IEEEkeywords}
+reinforcement learning, Q-learning, SARSA, deep Q-network, discretization, ablation study
+\end{IEEEkeywords}
+
+% ---------------------------------------------------------------- 0.5 page
+\section{Introduction}
+
+Value-based reinforcement learning (RL) estimates the action-value function $Q(s,a)$ and
+acts greedily with respect to it. In its tabular form, Q-learning~\cite{watkins1992} stores
+one value per state--action pair, which requires a finite and small state
+space~\cite{sutton2018}. Most control problems, however, have continuous observations.
+Two routes are then available: discretize the state space so that a table can still be
+used, or replace the table with a function approximator, as Deep Q-Networks (DQN) do with a
+neural network, an experience-replay buffer and a target network~\cite{mnih2015}.
+Discretization is simple and cheap per step, but the number of states grows exponentially
+with the number of dimensions~\cite{bellman1957}. DQN generalizes across states, but
+bootstrapping with a nonlinear approximator trained off-policy can be
+unstable~\cite{sutton2018}.
+
+This paper compares both routes on Gymnasium~\cite{towers2024} tasks under a common
+protocol that follows the recommendations of~\cite{henderson2018}: equal budgets of
+environment steps, multiple seeds, and greedy evaluation separated from training returns.
+Our contributions are:
+\begin{itemize}
+  \item a comparison of tabular Q-learning (three bin counts, three velocity ranges, and
+        SARSA) with DQN on CartPole-v1 under the same 200k-step budget (Tier~1);
+  \item a one-at-a-time study of the learning rate and the target-update period of DQN on
+        LunarLander-v3, with ablations of the target network and of the replay buffer
+        (Tier~2);
+  \item a comparison of Double~\cite{vanhasselt2016} and Dueling~\cite{wang2016} DQN with
+        vanilla DQN on the same task (Tier~3, option~B);
+  \item a quantitative analysis of why continuous-action locomotion and pixel-based Atari
+        games fall outside the reach of tabular methods and DQN.
+\end{itemize}
+Section~\ref{sec:pertinence} justifies the choice of environments,
+Sections~\ref{sec:methods} and~\ref{sec:setup} describe the methods and the protocol,
+Sections~\ref{sec:results} and~\ref{sec:discussion} report and discuss the results, and
+Section~\ref{sec:analysis} contains the analysis of unsuitable environments. Code,
+configurations and logs are available at
+\url{https://github.com/gato09sa/rl-dqn-project01}~\todo{confirm the repository is public}.
+
+% ---------------------------------------------------------------- 0.4 page
+\section{Pertinence Analysis}\label{sec:pertinence}
+
+A task suits tabular RL if its state space is finite and small, or can be discretized into
+a table whose entries are visited often enough within the training budget. It suits DQN if
+its action space is discrete, because the greedy action is an $\arg\max$ over one network
+output per action; the observation space may be continuous. Table~\ref{tab:envs} applies
+these criteria to the candidate tasks.
+
+\begin{table}[t]
+\centering
+\caption{Candidate environments (Gymnasium 1.3.0). ``10-bin $|\mathcal{S}|$'': number of
+table states with 10 bins per continuous dimension.}
+\label{tab:envs}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lcccrl@{}}
+\toprule
+Environment & Obs. & $|\mathcal{A}|$ & Threshold & 10-bin $|\mathcal{S}|$ & Suits \\
+\midrule
+CartPole-v1    & 4             & 2 & 475    & $10^{4}$           & tabular, DQN \\
+MountainCar-v0 & 2             & 3 & $-110$ & $10^{2}$           & tabular, DQN \\
+Acrobot-v1     & 6             & 3 & $-100$ & $10^{6}$           & DQN \\
+LunarLander-v3 & 8$^{\dagger}$ & 4 & 200    & $4\!\times\!10^{6}$ & DQN \\
+\bottomrule
+\multicolumn{6}{@{}l}{\scriptsize $^{\dagger}$Six continuous dimensions and two binary
+leg-contact flags.}
+\end{tabular}
+\end{table}
+
+\textbf{CartPole-v1} has four continuous observation dimensions, two of which (cart and pole
+velocities) are unbounded, so bin ranges must be chosen by hand. With 10 bins per
+dimension the table has $10^4$ states and $2\times10^4$ entries, ten times fewer than the
+$2\times10^5$ training steps, so tabular learning is feasible. With 20 bins it has
+$1.6\times10^5$ states and $3.2\times10^5$ entries, more than the step budget, so many
+entries can be updated only rarely, if at all. The two actions are discrete, so DQN applies
+directly. CartPole therefore suits both families and is our Tier~1 task.
+
+\textbf{LunarLander-v3} has six continuous dimensions, two binary flags and four discrete
+actions. Ten bins per continuous dimension give $4\times10^6$ states and $1.6\times10^7$
+entries, 40 times the 400k-step budget: the table cannot be filled, whereas DQN only needs
+the discrete action space. It is therefore a DQN task, used for Tiers~2 and~3.
+MountainCar-v0 (Tier~1 alternative) and Acrobot-v1 (Tier~2 alternative) were not used
+\todo{one sentence on why CartPole and LunarLander were preferred}.
+
+% ---------------------------------------------------------------- 1.0 page
+\section{Methods}\label{sec:methods}
+
+\subsection{Tabular Q-learning and SARSA}
+Both methods update a table $Q(s,a)$ after every transition $(s_t,a_t,r_{t+1},s_{t+1})$:
+\begin{equation}
+Q(s_t,a_t) \leftarrow Q(s_t,a_t) + \alpha\,\bigl[y_t - Q(s_t,a_t)\bigr],
+\end{equation}
+with target $y_t = r_{t+1} + \gamma \max_{a} Q(s_{t+1},a)$ for Q-learning
+(off-policy)~\cite{watkins1992} and $y_t = r_{t+1} + \gamma\,Q(s_{t+1},a_{t+1})$ for SARSA
+(on-policy), where $a_{t+1}$ is the action the agent actually takes
+next~\cite{rummery1994}. If $s_{t+1}$ is terminal, $y_t = r_{t+1}$. An episode cut by the
+time limit is \emph{not} terminal, so its last transition still bootstraps from
+$s_{t+1}$~\cite{pardo2018}. The table is initialized to zero, actions are chosen
+$\varepsilon$-greedily, and ties in the greedy action are broken at random so that
+unvisited states do not bias the policy toward action~0.
+
+\subsection{State discretization}
+Each observation dimension $i$ is split into $b_i$ equal-width bins over a range
+$[l_i,h_i]$; values outside the range fall into the first or last bin. The per-dimension
+indices $\phi_i \in \{0,\dots,b_i-1\}$ are combined into a single state index
+$s = \sum_i \phi_i \prod_{j>i} b_j$, so $|\mathcal{S}| = \prod_i b_i$. For CartPole, the
+cart position and pole angle use their termination limits ($\pm2.4$ and $\pm0.21$\,rad);
+the unbounded velocities use $\pm3.0$ and $\pm3.5$ by default, $\pm1.5$ and $\pm2.0$ in
+the \emph{narrow} variant, and $\pm6.0$ and $\pm7.0$ in the \emph{wide} variant.
+
+\subsection{Deep Q-Network}
+A multilayer perceptron with ReLU activations maps an observation to one value per action,
+$Q(s,\cdot\,;\theta)$. Transitions are stored in a FIFO replay buffer $\mathcal{D}$ of
+capacity $N$; after $T_0$ warm-up steps, one gradient step is taken every $k$ environment
+steps on a minibatch of size $B$ sampled uniformly from $\mathcal{D}$, minimizing
+\begin{align}
+\mathcal{L}(\theta) &= \mathbb{E}_{\mathcal{D}}\Bigl[\ell_{H}\bigl(y - Q(s,a;\theta)\bigr)\Bigr], \\
+y &= r + \gamma\,(1-d)\max_{a'} Q(s',a';\theta^{-}), \label{eq:dqn}
+\end{align}
+where $\ell_H$ is the Huber loss~\cite{huber1964}, $d$ is 1 only for true terminal states,
+and $\theta^-$ are the parameters of a target network copied from $\theta$ every $C$
+environment steps. We use Adam~\cite{kingma2015} with the gradient norm clipped at 10. The
+exploration rate $\varepsilon$ decays linearly from 1.0 to 0.05 over $T_\varepsilon$ steps
+and then stays constant. All networks are implemented in PyTorch~\cite{paszke2019}.
+
+\subsection{Ablations}
+\emph{No target network}: $\theta^- \equiv \theta$, i.e., the bootstrap target in
+\eqref{eq:dqn} is computed by the online network itself (without gradient).
+\emph{No replay buffer}: the buffer holds only the last $B$ transitions and each update uses
+exactly this window, so minibatches are consecutive, correlated samples; the number of
+gradient steps is the same as in vanilla DQN.
+
+\subsection{Double and Dueling DQN (Tier~3)}
+Double DQN~\cite{vanhasselt2016} decouples action selection from evaluation to reduce the
+overestimation caused by the $\max$ operator:
+$y = r + \gamma(1-d)\,Q\bigl(s',\arg\max_{a'}Q(s',a';\theta);\theta^-\bigr)$.
+Dueling DQN~\cite{wang2016} splits the last layer into a state value and action advantages,
+$Q(s,a) = V(s) + A(s,a) - \frac{1}{|\mathcal{A}|}\sum_{a'}A(s,a')$; subtracting the mean
+advantage makes $V$ and $A$ identifiable.
+
+% ---------------------------------------------------------------- 0.8 page
+\section{Experimental Setup}\label{sec:setup}
+
+\textbf{Experiments.} Tier~1 (CartPole-v1, 200k steps, 5 seeds) trains seven variants:
+Q-learning with 6, 10 and 20 bins, Q-learning with 10 bins and narrow or wide velocity
+ranges, SARSA with 10 bins, and DQN. Tier~2 (LunarLander-v3, 400k steps, 3 seeds) trains
+the default DQN, two alternative learning rates ($10^{-4}$, $2\times10^{-3}$), two
+alternative target-update periods ($C = 250$, $4000$), and the two ablations, changing one
+value at a time. Tier~3 trains Double, Dueling and Double+Dueling DQN with the Tier~2
+defaults and seeds, and reuses the Tier~2 default runs as the vanilla baseline.
+Table~\ref{tab:hparams} lists all hyperparameters.
+
+\begin{table}[t]
+\centering
+\caption{Hyperparameters of the default configurations.}
+\label{tab:hparams}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & \multicolumn{2}{c}{Tier 1 (CartPole)} & Tiers 2--3 \\
+\cmidrule(lr){2-3}
+Parameter & Tabular & DQN & DQN (LunarLander) \\
+\midrule
+Step budget / seeds          & 200k / 5     & 200k / 5     & 400k / 3 \\
+Evaluation period            & 5k           & 5k           & 10k \\
+Discount $\gamma$            & 0.99         & 0.99         & 0.99 \\
+$\varepsilon$: start $\to$ end & $1\to0.05$ & $1\to0.05$   & $1\to0.05$ \\
+Decay steps $T_\varepsilon$  & 100k         & 20k          & 100k \\
+Step size $\alpha$           & 0.1          & --           & -- \\
+Bins per dimension           & 10 (6, 20)   & --           & -- \\
+Hidden layers                & --           & 128, 128     & 256, 256 \\
+Learning rate                & --           & $5\!\times\!10^{-4}$ & $5\!\times\!10^{-4}$\,$^{a}$ \\
+Batch size $B$               & --           & 64           & 128 \\
+Replay capacity $N$          & --           & 50k          & 100k \\
+Warm-up steps $T_0$          & --           & 1k           & 10k \\
+Update every $k$ steps       & 1            & 1            & 4 \\
+Target period $C$ (steps)    & --           & 1000         & 1000\,$^{b}$ \\
+\bottomrule
+\multicolumn{4}{@{}l}{\scriptsize Also studied: $^{a}\,10^{-4}$ and $2\times10^{-3}$;
+$^{b}\,250$ and $4000$ steps.}
+\end{tabular}
+\end{table}
+
+\textbf{Evaluation protocol.} Every 5k (Tier~1) or 10k (Tiers~2--3) environment steps the
+current greedy policy ($\varepsilon=0$) is evaluated on 10 episodes with fixed environment
+seeds; training returns are logged separately, one value per episode. After training, the
+final greedy policy is evaluated on 100 episodes with unseen seeds, which matches the
+definition of the success thresholds (mean return over 100 episodes). \emph{Steps to
+threshold} is the first periodic evaluation whose 10-episode mean reaches the threshold.
+All curves use environment steps on the $x$-axis, so tabular agents and DQN are compared
+at equal experience. They show the mean over seeds with a band of $\pm1$ population standard
+deviation; training curves are smoothed with a 10-episode moving average and interpolated
+onto a common step grid.
+
+\textbf{Exploration schedules.} In Tier~1 the tabular agents decay $\varepsilon$ over half
+the budget and DQN over 20k steps. A table has no generalization, so every state has to be
+visited; DQN generalizes and benefits from exploiting earlier. The step budget, which is
+the quantity compared, is identical.
+
+\textbf{Reproducibility and hardware.} Python, NumPy, PyTorch and the environments are
+seeded per run. Runs execute as four parallel processes with one CPU thread each; every run
+stores its configuration, hardware and library versions. Tier~1 ran on an Intel Core
+i5-10210U with Python 3.14.4 and PyTorch 2.14.1, and Tiers~2--3 on an Intel Core i5-10300H
+with Python 3.11.2 and PyTorch 2.5.1; both CPUs have 4 cores and 8 threads, both machines
+used Gymnasium 1.3.0 and NumPy 2.4.6, and all networks ran on the CPU. All comparisons
+within a tier, including wall-clock times, come from a single machine. Tier~1 runs record
+commit \texttt{6398ca6} (tag \texttt{v1-experiments}); Tiers~2--3 ran from commit
+\texttt{a1c62ff}, which differs only in not recording the commit in the run metadata. One
+command per experiment reproduces every figure (see the repository README).
+
+% ---------------------------------------------------------------- 2.3 pages
+\section{Results}\label{sec:results}
+
+Table~\ref{tab:results} summarizes every variant. We report two success measures:
+\emph{reached}, a 10-episode evaluation during training at or above the threshold, and
+\emph{solved}, a final 100-episode mean at or above it, which is the official criterion.
+
+\begin{table}[t]
+\centering
+\caption{Summary over seeds. Final: return of the final greedy policy over 100 episodes,
+mean $\pm$ s.d.\ across seeds. Solved: seeds whose final return reaches the threshold.
+Reached: seeds with a 10-episode evaluation at or above it during training; Steps: median
+first step at which this happens. Time: mean wall-clock per run.}
+\label{tab:results}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lrccrr@{}}
+\toprule
+Variant & Final return & Solved & Reached & Steps & Time (s) \\
+\midrule
+\multicolumn{6}{@{}l}{\emph{Tier 1: CartPole-v1, threshold 475, 5 seeds}} \\
+Q-learning, 6 bins       & $216.9\pm53.8$  & 0/5 & 0/5 & --   & 44 \\
+Q-learning, 10 bins      & $199.2\pm62.0$  & 0/5 & 0/5 & --   & 50 \\
+Q-learning, 20 bins      & $163.6\pm47.9$  & 0/5 & 0/5 & --   & 45 \\
+Q-learning, 10 narrow    & $280.2\pm107.1$ & 1/5 & 1/5 & 145k & 46 \\
+Q-learning, 10 wide      & $175.5\pm29.0$  & 0/5 & 0/5 & --   & 44 \\
+SARSA, 10 bins           & $208.1\pm70.4$  & 0/5 & 0/5 & --   & 44 \\
+DQN                      & $159.2\pm68.1$  & 0/5 & 5/5 & 90k  & 823 \\
+\midrule
+\multicolumn{6}{@{}l}{\emph{Tier 2: LunarLander-v3, threshold 200, 3 seeds}} \\
+DQN default              & $206.6\pm30.2$  & 2/3 & 3/3 & 220k & 689 \\
+lr $10^{-4}$             & $118.7\pm90.7$  & 0/3 & 2/3 & 230k & 764 \\
+lr $2\times10^{-3}$      & $112.9\pm205.1$ & 2/3 & 3/3 & 80k  & 788 \\
+$C=250$                  & $152.1\pm88.1$  & 1/3 & 3/3 & 260k & 680 \\
+$C=4000$                 & $233.7\pm28.3$  & 2/3 & 3/3 & 250k & 663 \\
+No target network        & $82.7\pm76.0$   & 0/3 & 3/3 & 100k & 669 \\
+No replay buffer         & $-76.4\pm77.1$  & 0/3 & 2/3 & 265k & 656 \\
+\midrule
+\multicolumn{6}{@{}l}{\emph{Tier 3: LunarLander-v3, threshold 200, 3 seeds}} \\
+Double DQN               & $220.0\pm53.9$  & 2/3 & 3/3 & 180k & 681 \\
+Dueling DQN              & $222.7\pm47.2$  & 2/3 & 3/3 & 230k & 738 \\
+Double + Dueling         & $214.4\pm49.3$  & 2/3 & 3/3 & 230k & 759 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tier 1: tabular RL versus DQN on CartPole-v1}
+Fig.~\ref{fig:t1-main} compares Q-learning with 6, 10 and 20 bins with DQN. Per
+environment step the tables learn first: with 10 bins the mean evaluation return is 208 at
+20k steps, against 122 for DQN. All tabular variants then plateau between about 150 and 280
+for the rest of the budget. DQN overtakes them after about 85k steps, scores 500 in at least
+one evaluation in every seed, and its mean evaluation return peaks at 426 at 130k steps. It
+does not hold this level: the band widens to more than $\pm150$, and the final policies
+return only $159\pm68$, below every tabular variant. Per second the order reverses: a
+tabular run processes its 200k steps in 44--50\,s (about 4\,400 steps/s), DQN in 823\,s
+(about 240 steps/s). The 10-bin table first reaches an evaluation return of 200 after a
+median of 6\,s; DQN after 145\,s, and 475 after 340--390\,s. The training-return panel
+favours DQN early mainly because its $\varepsilon$ reaches 0.05 at 20k steps, against 100k
+for the tables.
+
+Fewer bins gave higher final returns: $217\pm54$ with 6 bins, $199\pm62$ with 10 and
+$164\pm48$ with 20; the ordering is monotonic but each gap is smaller than one s.d.
+At the end of training the agents had visited 28\% of the 1\,296 states with 6 bins, 11\%
+of the $10^4$ with 10 bins and 2.4\% of the $1.6\times10^5$ with 20 bins, i.e., about 370,
+1\,060 and 3\,800 states, which received on average 540, 190 and 50 updates each.
+Fig.~\ref{fig:t1-sens} varies the velocity ranges at 10 bins. Narrow ranges give the best
+tabular result ($280\pm107$), including the only tabular seed that solves the task (final
+return 493), and raise the visited fraction to 17\%; wide ranges give $176\pm29$ and lower
+it to 5.8\%. SARSA ($208\pm70$) and Q-learning ($199\pm62$) with 10 bins are
+indistinguishable, and their curves overlap throughout (figure in the repository).
+
+\begin{figure*}[t]
+\centering
+\resfig{tier1/figures/tabular_vs_dqn.png}
+\caption{Tier~1, CartPole-v1: tabular Q-learning (6, 10, 20 bins) versus DQN under the same
+200k-step budget. Left: greedy evaluation return (10 episodes every 5k steps); right:
+training return. Mean over 5 seeds $\pm1$ s.d.; dashed line: success threshold (475).}
+\label{fig:t1-main}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\resfig{tier1/figures/tabular_ranges.png}
+\caption{Tier~1, CartPole-v1: Q-learning with 10 bins and three ranges for the cart
+velocity ($v$) and the pole angular velocity ($w$). Mean over 5 seeds $\pm1$ s.d.}
+\label{fig:t1-sens}
+\end{figure*}
+
+\subsection{Tier 2: DQN on LunarLander-v3}
+Fig.~\ref{fig:t2-hp} shows the hyperparameter study. The default DQN reaches 200 in every
+seed (median 220k steps) and ends at $207\pm30$, with two of three seeds solving the task.
+With a learning rate of $2\times10^{-3}$ learning is fastest (median 80k steps) and two seeds
+end at 257 and 259, among the best final returns of Tier~2, but the third collapses after
+230k steps: its evaluation return stays between $-420$ and $-900$ from 260k steps on and its
+final return is $-177$. Its mean $Q$ (the average of $Q(s,a;\theta)$ over the training
+minibatches) climbs from 58 to 252 within 70k steps and then swings down to $-59$, whereas
+it never exceeds 58 in the other two seeds. With $10^{-4}$ learning is slower and less reliable: one seed
+never exceeds $-9$, and the mean $Q$ decays to about 3 by the end. The target period mainly
+affects stability: $C=4000$ gives the highest and most consistent final return
+($234\pm28$) and the lowest, smoothest mean $Q$ (at most 36), but reaches the threshold
+30k steps later than the default; $C=250$ ends at $152\pm88$, with higher mean $Q$ (up to
+64) and one seed that drops from 270 to 33 in its last evaluation.
+
+Fig.~\ref{fig:t2-abl} shows the ablation. Without a target network the agent reaches 200
+in every seed, even earlier than full DQN (median 100k steps), but cannot keep it: its
+evaluations alternate between about 270 and 100 or less, no seed solves the task, and the
+final return is $83\pm76$. Its mean $Q$ is erratic, from $-26$ at 20k steps to peaks of 121
+and 155, against at most 56 for full DQN. Without a replay buffer, training returns stay
+below about 100, evaluations collapse suddenly (one seed scores $-3\,782$ at 370k steps),
+and the final return is $-76\pm77$, the worst of all LunarLander runs.
+
+\begin{figure*}[t]
+\centering
+\resfig{tier2/figures/learning_rate.png}\\[2pt]
+\resfig{tier2/figures/target_update.png}
+\caption{Tier~2, LunarLander-v3: DQN sensitivity to the learning rate (top) and to the
+target-network update period $C$ (bottom). Left: greedy evaluation return; right: training
+return. Mean over 3 seeds $\pm1$ s.d.; dashed line: threshold (200).}
+\label{fig:t2-hp}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\resfig{tier2/figures/ablation.png}
+\caption{Tier~2 ablation on LunarLander-v3: full DQN, without target network, and without
+replay buffer. The large negative excursions are single-seed collapses of the agent without
+replay. Mean over 3 seeds $\pm1$ s.d.}
+\label{fig:t2-abl}
+\end{figure*}
+
+\subsection{Tier 3: Double and Dueling DQN}
+In Fig.~\ref{fig:t3} the four curves overlap within their bands. Double ($220\pm54$),
+Dueling ($223\pm47$) and Double+Dueling DQN ($214\pm49$) end slightly above vanilla DQN
+($207\pm30$), and each solves the task in two of three seeds, as vanilla DQN does. Double
+DQN reaches the threshold first (median 180k steps, against 220k). The final mean $Q$ is
+32 for Double DQN and 35 for the other three variants.
+
+\begin{figure*}[t]
+\centering
+\resfig{tier3/figures/dqn_variants.png}
+\caption{Tier~3, LunarLander-v3: vanilla, Double, Dueling and Double+Dueling DQN. The
+vanilla runs are the Tier~2 default runs. Mean over 3 seeds $\pm1$ s.d.}
+\label{fig:t3}
+\end{figure*}
+
+% ---------------------------------------------------------------- 1.0 page
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Which method learned faster in Tier~1, and why?}
+The answer depends on the unit. Per second, the table wins by far: a Q-learning update reads
+and writes one entry, whereas DQN runs a forward and backward pass of the network on a
+minibatch of 64 at every step, about 18 times the cost per step on our CPU. Per environment
+step, the table is faster only at first. It shares nothing between states, but with 6 or
+10 bins only 370--1\,060 states are ever visited and each is updated hundreds of times, so
+the visited entries settle quickly. The table then stops improving: its plateau around 200
+is reached by 20k steps and does not move during the remaining 180k, although
+$\varepsilon$ keeps decreasing. This is a limit of the representation, not of the data. A
+grid cell merges states whose best action differs, e.g., a pole leaning slightly left that
+is moving left or right within the same velocity bin, so the discretized problem is not
+Markov and no table over it balances for 500 steps reliably. DQN takes the continuous
+observation as input and generalizes across nearby states, so it can represent a finer
+decision boundary; fitting it takes more steps, but it is the only method that reaches 475.
+
+DQN's late degradation is consistent with a known weakness of DQN on CartPole: once the
+policy balances for 500 steps, the 50k-transition buffer holds about 100 near-identical
+successful episodes, transitions close to failure are flushed out, and the network is
+trained only on states it already handles, so its values for the states that precede a
+fall drift. The logged mean $Q$ is in line with this reading: it rises steadily to 89--96
+at 200k steps, close to $1/(1-\gamma)=100$, the value of a pole that never falls (time-limit
+cuts bootstrap). Because we evaluate the final policy, this degradation is counted; a
+best-checkpoint report would have hidden it.
+
+\subsection{Sensitivity to the key design choice}
+For the tables the key choice is the discretization, and two effects compete. More bins
+give finer resolution but more entries to fill: with 20 bins the 3\,800 visited states
+receive about 50 updates each, against 540 with 6 bins, and with $\alpha=0.1$ an entry needs
+tens of updates to forget its initial value and average its noisy targets, as
+Section~\ref{sec:pertinence} anticipated from the table size. The ranges matter as much as
+the count. With wide ranges most observed velocities fall into a few central bins, so only
+5.8\% of the table is used and the effective resolution is coarse; narrow ranges spend the
+10 bins where the velocities actually are and clip only rare extreme values. What helps is
+resolution where the data lie, not the number of bins. SARSA and Q-learning coincide because
+their targets differ only in $Q(s',a')$ versus $\max_{a'}Q(s',a')$: once $\varepsilon=0.05$,
+95\% of next actions are greedy, and CartPole has no state where one exploratory action is
+so costly that an on-policy learner would prefer a safer path, as in the cliff-walking
+example of~\cite{sutton2018}.
+
+For DQN the learning rate trades speed for stability. A step of $2\times10^{-3}$ fits the
+targets faster, but it also moves the Q-function far between target syncs; in one seed the
+loop through the bootstrap target amplified the values (mean $Q$ up to 252) and the policy
+collapsed. A step of $10^{-4}$ was too small to learn within 400k steps in one seed. The
+target period acts in the opposite direction: a longer period keeps the regression target
+fixed for longer, which gave lower and smoother $Q$ estimates and the most reliable final
+returns, at the cost of propagating value information more slowly. With three seeds, only
+the divergence at $2\times10^{-3}$ is large relative to the across-seed spread.
+
+\subsection{What did the ablation reveal?}
+Both components matter, and in our setting the replay buffer matters more. Without a target
+network the bootstrap target $\max_{a'}Q(s',a';\theta)$ changes with every gradient step,
+so each update partly chases its own output. Value information propagates immediately, which
+explains the early threshold crossings, but the estimates oscillate (mean $Q$ from $-26$ to
+155) and so does the policy. Without replay, every minibatch is the same window of the last
+128 consecutive transitions, which are strongly correlated and come from one region of the
+state space. Gradient steps fit that region and overwrite what was learned elsewhere, and
+old transitions are never revisited, so the agent forgets, e.g., how to land while it is
+learning to hover; the result is the sudden collapses in Fig.~\ref{fig:t2-abl} and the
+lowest final return. These are the two problems that replay and the target network were
+introduced to solve~\cite{mnih2015}.
+
+In Tier~3, Double DQN did not measurably reduce the mean $Q$ (32 against 35) and no variant
+improved significantly on vanilla DQN. The overestimation that Double DQN removes grows
+with the noise of the estimates and with the number of actions in the
+$\max$~\cite{vanhasselt2016}; with four actions, a Huber loss, gradient clipping and a
+1000-step target period, the bias of vanilla DQN appears to be small here. Dueling helps
+most when many actions have similar values~\cite{wang2016}, which LunarLander's four
+engines do not obviously provide. Detecting a gain of 10--15 points against a spread of
+30--50 would require many more seeds.
+
+\subsection{Limitations}
+Tiers~2 and~3 use three seeds, so differences smaller than the across-seed spread are not
+conclusive. The hyperparameter study varies one value at a time around a single default
+and ignores interactions. Steps to threshold are measured with 10-episode evaluations,
+which are noisier than the 100-episode criterion. We report the final policy rather than
+the best checkpoint, so late performance drops are counted. Tier~1 and Tiers~2--3 ran on
+different machines and library versions, so wall-clock times are comparable only within a
+tier. The 10-episode \emph{reached} criterion overstates success: without a target network
+every seed reached 200 but none solved the task. The mean $Q$ is averaged over replayed
+state--action pairs and was not compared with Monte Carlo returns, so it shows trends but
+not the size of the overestimation bias. In Tier~1 the training returns of the two
+families are not directly comparable because their $\varepsilon$ schedules differ.
+
+% ---------------------------------------------------------------- 1.0 page
+\section{Analysis of Unsuitable Environments}\label{sec:analysis}
+
+\subsection{Continuous-action locomotion}
+BipedalWalker-v3 and the MuJoCo~\cite{todorov2012} locomotion tasks have continuous,
+multidimensional action spaces (torques in $[-1,1]^d$, $[-0.4,0.4]^{17}$ for Humanoid) and
+observations of 11 to 348 dimensions (Table~\ref{tab:locomotion}). DQN cannot use them
+directly: its greedy policy needs $\max_a Q(s,a)$, which over a continuous set is itself an
+optimization problem to solve at every step. Discretizing each of the $d$ torque dimensions
+into $k$ levels gives $k^d$ joint actions, each with its own network output and its own
+value estimate. With $k=11$ (a torque resolution of 0.2), HalfCheetah already needs
+$1.8\times10^6$ outputs and Ant $2.1\times10^8$; even $k=5$ leaves Humanoid with
+$7.6\times10^{11}$. Most of these actions would never be tried, so their values would be
+pure extrapolation, and coarse levels cannot represent the smooth, coordinated torques of
+a gait. Factorizing the output per action dimension mitigates the explosion but changes the
+algorithm~\cite{tavakoli2018}. Tabular methods fail earlier, on the state side: 10 bins
+per dimension give $10^{24}$ states for BipedalWalker and $10^{105}$ for Ant, against
+typical budgets of about $10^6$ environment steps.
+
+\begin{table}[t]
+\centering
+\caption{Action- and state-space sizes after uniform discretization, computed by
+instantiating each environment (Gymnasium 1.3.0, MuJoCo 3.17.0).}
+\label{tab:locomotion}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+ & & & \multicolumn{2}{c}{$|\mathcal{A}| = k^d$} & 10-bin \\
+\cmidrule(lr){4-5}
+Environment & Obs. & $d$ & $k=5$ & $k=11$ & $|\mathcal{S}|$ \\
+\midrule
+BipedalWalker-v3 & 24              & 4  & 625                   & 14\,641               & $10^{24}$ \\
+Hopper-v5        & 11              & 3  & 125                   & 1\,331                & $10^{11}$ \\
+HalfCheetah-v5   & 17              & 6  & 15\,625               & $1.8\!\times\!10^{6}$ & $10^{17}$ \\
+Ant-v5           & 105$^{\dagger}$ & 8  & $3.9\!\times\!10^{5}$ & $2.1\!\times\!10^{8}$ & $10^{105}$ \\
+Humanoid-v5      & 348             & 17 & $7.6\!\times\!10^{11}$ & $5.1\!\times\!10^{17}$ & $10^{348}$ \\
+\bottomrule
+\multicolumn{6}{@{}l}{\scriptsize $^{\dagger}$Includes 78 contact-force terms; 27 without them.}
+\end{tabular}
+\end{table}
+
+\subsection{Suitable algorithm families}
+These tasks call for actor-critic methods whose actor outputs a continuous action directly,
+which removes the maximization over actions, while a critic $Q(s,a)$ takes the action as an
+input and generalizes across it.
+\emph{PPO}~\cite{schulman2017} is on-policy: a Gaussian policy is improved with a clipped
+surrogate objective that limits the size of each update. It is robust and parallelizes
+well across environments, but it discards data after each update, so it needs more samples.
+\emph{SAC}~\cite{haarnoja2018} is off-policy: a stochastic actor maximizes return plus an
+entropy bonus that drives exploration, data are reused from a replay buffer, and two
+critics limit overestimation; it is among the most sample-efficient methods on MuJoCo.
+\emph{TD3}~\cite{fujimoto2018} extends DDPG~\cite{lillicrap2016} with a deterministic actor,
+clipped double Q-learning, target-policy smoothing and delayed actor updates, which counter
+the same overestimation bias that Double DQN addresses in the discrete case. SAC and TD3
+keep DQN's replay buffer and target networks; what changes is the actor that replaces the
+$\arg\max$.
+
+\subsection{High-dimensional observations: Atari pixels}
+An observation of ALE/Pong-v5~\cite{bellemare2013} is a $210\times160\times3$ array of 8-bit
+values, so there are up to $256^{100800}\approx10^{242751}$ distinct observations; the usual
+preprocessing to four stacked $84\times84$ grayscale frames still leaves
+$256^{28224}\approx10^{67970}$. A table over this space cannot be stored, and, more
+fundamentally, it cannot generalize: each entry is learned only from visits to that exact
+image, two frames that differ in one pixel are unrelated entries, and exact frames rarely
+repeat, so almost every entry would be visited at most once. Coarsening the pixels either
+keeps the dimensionality or erases the small objects (ball, paddles) that decide the game.
+A single frame is also not Markov, because it shows no velocity; this is why frames are
+stacked. DQN addresses both problems with a convolutional network whose shared weights map
+visually similar frames to similar values~\cite{mnih2015}, at the cost of millions of
+frames and GPU time.
+
+\subsection{Summary: matching the problem to the algorithm family}
+Table~\ref{tab:families} condenses the analysis. Each row adds one difficulty that breaks
+the method of the row above: a state space too large to enumerate breaks the table, a
+continuous action space breaks the $\arg\max$ of DQN, and raw pixels require a network
+that extracts features from images before any value can be estimated.
+
+\begin{table}[t]
+\centering
+\caption{Which family suits which problem structure.}
+\label{tab:families}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llll@{}}
+\toprule
+States & Actions & Family & Example \\
+\midrule
+Small or discretizable & Discrete   & Q-learning, SARSA & CartPole \\
+Continuous             & Discrete   & DQN and variants  & LunarLander \\
+Continuous             & Continuous & PPO, SAC, TD3     & Ant \\
+Pixels                 & Discrete   & DQN with a CNN    & Pong \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---------------------------------------------------------------- 0.2 page
+\section{AI-Use Statement}
+Generative AI was used under the course policy. A.~Chavez used Claude (Anthropic) through
+Claude Code to explain the assignment, review the code for correctness, check the software
+environment, compute the environment specifications in Tables~\ref{tab:envs}
+and~\ref{tab:locomotion}, extract the statistics in Section~\ref{sec:results} from the
+logged result files, and draft the text of this report. \todo{J.~Reinoso: tools used and for what tasks.} The authors verified all
+AI-generated content: environment dimensions were obtained by instantiating each
+environment, every reference was checked against its source~\todo{do it before submission},
+and every number in Section~\ref{sec:results} comes from the logged result files. The most
+important prompts are listed in Appendix~\ref{app:prompts}.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\appendices
+\section{Most Important Prompts}\label{app:prompts}
+\todo{Select the prompts that shaped the work. Examples from A.~Chavez (translated from
+Spanish): ``Explain everything this assignment says''; ``Review the files my teammate pushed
+and check whether my environment works for them''; ``Build the full report skeleton and fill
+in the parts that do not depend on results''. Add J.~Reinoso's prompts.}
+
+\end{document}
