@@ -25,10 +25,12 @@ Discretization, Hyperparameter Sensitivity, and Ablations}
 
 \author{
 \IEEEauthorblockN{Jos\'e Reinoso}
-\IEEEauthorblockA{\todo{affiliation}}
+\IEEEauthorblockA{School of Mathematical and Computational Sciences\\
+Yachay Tech University, Urcuqu\'i, Ecuador}
 \and
 \IEEEauthorblockN{Aldrin Chavez}
-\IEEEauthorblockA{\todo{affiliation}}
+\IEEEauthorblockA{School of Mathematical and Computational Sciences\\
+Yachay Tech University, Urcuqu\'i, Ecuador}
 }
 
 \maketitle
@@ -93,7 +95,7 @@ Sections~\ref{sec:methods} and~\ref{sec:setup} describe the methods and the prot
 Sections~\ref{sec:results} and~\ref{sec:discussion} report and discuss the results, and
 Section~\ref{sec:analysis} contains the analysis of unsuitable environments. Code,
 configurations and logs are available at
-\url{https://github.com/gato09sa/rl-dqn-project01}~\todo{confirm the repository is public}.
+\url{https://github.com/gato09sa/rl-dqn-project01}.
 
 % ---------------------------------------------------------------- 0.4 page
 \section{Pertinence Analysis}\label{sec:pertinence}
@@ -137,8 +139,15 @@ directly. CartPole therefore suits both families and is our Tier~1 task.
 actions. Ten bins per continuous dimension give $4\times10^6$ states and $1.6\times10^7$
 entries, 40 times the 400k-step budget: the table cannot be filled, whereas DQN only needs
 the discrete action space. It is therefore a DQN task, used for Tiers~2 and~3.
-MountainCar-v0 (Tier~1 alternative) and Acrobot-v1 (Tier~2 alternative) were not used
-\todo{one sentence on why CartPole and LunarLander were preferred}.
+MountainCar-v0 (Tier~1 alternative) and Acrobot-v1 (Tier~2 alternative) were not used.
+MountainCar's sparse reward makes a naive DQN rarely reach the goal under
+$\varepsilon$-greedy exploration, so the comparison would mostly measure exploration
+rather than the effect of discretization, which is the question Tier~1 asks; on CartPole
+both families can reach the threshold, which makes their comparison informative.
+Acrobot is the option offered for weak hardware; a timing test on one of our laptops
+(Intel i5-10210U, four runs in parallel) showed LunarLander fits the CPU budget, and its
+richer dynamics leave more room for the hyperparameters, the ablations and the Tier~3
+variants to differ.
 
 % ---------------------------------------------------------------- 1.0 page
 \section{Methods}\label{sec:methods}
@@ -600,7 +609,13 @@ Generative AI was used under the course policy. A.~Chavez used Claude (Anthropic
 Claude Code to explain the assignment, review the code for correctness, check the software
 environment, compute the environment specifications in Tables~\ref{tab:envs}
 and~\ref{tab:locomotion}, extract the statistics in Section~\ref{sec:results} from the
-logged result files, and draft the text of this report. \todo{J.~Reinoso: tools used and for what tasks.} The authors verified all
+logged result files, and draft the text of this report. J.~Reinoso used Claude (Anthropic)
+through Claude Code to set up the repository and the Python environment (including the
+Box2D build), to write the agents (\texttt{agents/}, \texttt{envs/}) and the experiment
+scripts and configurations (\texttt{experiments/}), to integrate Weights \& Biases logging,
+to run smoke tests and timing measurements, and to fill in parts of this report (the
+environment choice, this statement and the prompt appendix). Both authors reviewed the
+code and must be able to explain every line of it. The authors verified all
 AI-generated content: environment dimensions were obtained by instantiating each
 environment, every reference was checked against its source~\todo{do it before submission},
 and every number in Section~\ref{sec:results} comes from the logged result files. The most
@@ -611,9 +626,56 @@ important prompts are listed in Appendix~\ref{app:prompts}.
 
 \appendices
 \section{Most Important Prompts}\label{app:prompts}
-\todo{Select the prompts that shaped the work. Examples from A.~Chavez (translated from
-Spanish): ``Explain everything this assignment says''; ``Review the files my teammate pushed
-and check whether my environment works for them''; ``Build the full report skeleton and fill
-in the parts that do not depend on results''. Add J.~Reinoso's prompts.}
+Prompts that shaped the work, translated from Spanish and lightly edited for spelling
+(two consecutive messages are merged where one request spanned both), each followed by
+how its output was used and checked.
+
+\textbf{A.~Chavez:}
+\begin{itemize}
+  \item ``Explain everything this assignment says.''
+  \item ``Review the files my teammate pushed and check whether my environment works for
+        them.''
+  \item ``Build the full report skeleton and fill in the parts that do not depend on
+        results.''
+\end{itemize}
+
+\textbf{J.~Reinoso:}
+\begin{enumerate}
+  \item \textit{``Explain Tier~2 to me. Do you think it can run on my laptop?''}\\
+        \textbf{Use and verification:} the answer only estimated the cost. We then timed
+        30k LunarLander steps with four runs in parallel on the i5-10210U (about 73\,s per
+        run), extrapolated about 20 minutes per 400k-step run, and kept LunarLander instead
+        of Acrobot (Section~\ref{sec:pertinence}).
+  \item \textit{``Aldrin gave me an idea so we do not step on each other's code: one of us
+        takes care of the whole agents part, the tabular agent and the DQN for both tiers,
+        and the other one launches the runs. What do you think, or what issues do you see?
+        I liked it, but we are leaving out \texttt{common} and \texttt{plot}.''}\\
+        \textbf{Use and verification:} we adopted the split (agents and discretizer on one
+        side, experiment scripts on the other) and fixed a common agent interface
+        (\texttt{act}, \texttt{greedy}, \texttt{update}). Evaluation receives a policy
+        function rather than an agent, so the same code evaluates the Q-table and the
+        network, which keeps the Tier~1 comparison fair.
+  \item \textit{``Generate \texttt{tabular.py} (Q-learning and SARSA),
+        \texttt{discretizer.py} and \texttt{dqn.py} with the flags \texttt{use\_target},
+        \texttt{use\_replay}, \texttt{double} and \texttt{dueling}. Keep in mind that we
+        want it to run in parallel and use the cores; both PCs have 8 cores.''}\\
+        \textbf{Use and verification:} the agents were run with all 16 flag combinations
+        and a save/load round trip. A parallel test showed that the ``8 cores'' are 4
+        physical cores with 2 threads each: 8 parallel CartPole runs took 284\,s against
+        75\,s for one run alone, only about $2\times$ faster than running them one after
+        another, so every sweep uses 4 processes with one PyTorch thread each.
+  \item \textit{``I am using CoreWeave [Forge, a Weights \& Biases server]; I would like
+        to upload the plots there.''}\\
+        \textbf{Use and verification:} every run writes CSV logs, which are the source of
+        all figures, and mirrors them to Weights \& Biases. Uploads were checked with test
+        runs in a separate project, listed through the W\&B API, before the real sweeps.
+  \item \textit{``Aldrin says we should freeze the commits; it is for W\&B. For that we
+        need a line of code in each experiment, adjust it before running.''}\\
+        \textbf{Use and verification:} instead of one line per experiment, the logger
+        records the commit, tag and uncommitted-change flag of every run, and the code was
+        tagged \texttt{v1-experiments}. All 35 Tier~1 summaries report this tag with no
+        uncommitted changes; the Tier~2--3 runs predate the feature, and their commit
+        (\texttt{a1c62ff}) was recovered from the W\&B metadata.
+\end{enumerate}
 
 \end{document}
